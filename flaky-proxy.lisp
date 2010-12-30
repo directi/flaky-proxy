@@ -26,13 +26,17 @@
              headers
              :key #'car))
 
-;;; Hooks
-(defvar *request-received-hook* nil)
-(defvar *response-received-hook* nil)
+(defclass flaky-acceptor (hunchentoot:acceptor)
+  ())
 
-(defun call-hook (hook &rest args)
-  (when hook
-    (apply hook args)))
+(defmethod hunchentoot:process-connection ((acceptor flaky-acceptor) socket)
+  (bt:with-lock-held (*id-lock*)
+    (incf *id*))
+  (let ((*id* *id*))
+    (log-message "CONN start")
+    (call-hook *conn-received-hook* socket)
+    (call-next-method)
+    (log-message "CONN close")))
 
 (defun proxy-handler ()
   (let* ((request-method (hunchentoot:request-method*))
@@ -61,10 +65,20 @@
       (setf (hunchentoot:return-code*) return-code)
       body)))
 
+;;; Hooks
+(defvar *conn-received-hook* nil)
+(defvar *request-received-hook* nil)
+(defvar *response-received-hook* nil)
+
+(defun call-hook (hook &rest args)
+  (when hook
+    (apply hook args)))
+
 ;;; Hook handlers
 
 (defun clear-hooks ()
-  (setf *request-received-hook* nil
+  (setf *conn-received-hook* nil
+        *request-received-hook* nil
         *response-received-hook* nil))
 
 (defmacro with-count ((place count) (&rest args) &body body)
@@ -93,8 +107,8 @@
 (defvar *log-file* #p"/tmp/flaky-proxy.log")
 (defvar *log-file-stream* nil)
 
-(defvar *id-lock* (bordeaux-threads:make-lock "id"))
-(defvar *id* 1)
+(defvar *id-lock* (bt:make-lock "id"))
+(defvar *id* 0)
 
 (defun iso-time (&optional (time (get-universal-time)))
   "Returns the universal time TIME as a string in full ISO format."
