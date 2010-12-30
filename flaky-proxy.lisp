@@ -153,5 +153,8 @@
           (apply #'format nil fmt args))
   (force-output *log-file-stream*))
 
-(defun init ()
-  (setf *log-file-stream* (open *log-file* :direction :output :if-exists :append :if-does-not-exist :create)))
+(defvar *server* nil)
+
+(defun init (&key (port 3200) (log-file *log-file*))
+  (setf *server* (hunchentoot:start (make-instance 'flaky-acceptor :port port)))
+  (setf *log-file-stream* (open log-file :direction :output :if-exists :append :if-does-not-exist :create)))
