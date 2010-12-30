@@ -34,8 +34,8 @@
     (incf *id*))
   (let ((*id* *id*))
     (log-message "CONN start")
-    (call-hook *conn-received-hook* socket)
-    (call-next-method)
+    (unless (eql :close (call-hook *conn-received-hook* socket acceptor))
+      (call-next-method))
     (log-message "CONN close")))
 
 (defun proxy-handler ()
@@ -82,25 +82,54 @@
         *response-received-hook* nil))
 
 (defmacro with-count ((place count) (&rest args) &body body)
-  (let ((count-var (gensym)))
-    `(let ((,count-var ,count))
+  ;; FIXME: lock before checking/modifying count
+  (let ((count-var (gensym "COUNT-"))
+        (count-lock-var (gensym "COUNT-LOCK-"))
+        (new-count-var (gensym "NEW-COUNT-")))
+    `(let ((,count-var ,count)
+           (,count-lock-var (bt:make-lock "count-lock")))
        (setf ,place (lambda (,@args)
-                      (when (or (null ,count-var) (plusp ,count-var))
-                        (when (integerp ,count-var)
-                          (decf ,count-var)
-                          (when (zerop ,count-var)
-                            (setf ,place nil)))
-                        ,@body))))))
+                      (let ((,new-count-var (bt:with-lock-held (,count-lock-var) ,count-var)))
+                        (when (or (null ,new-count-var) (plusp ,new-count-var))
+                          (when (integerp ,new-count-var)
+                            (bt:with-lock-held (,count-lock-var)
+                              (decf ,count-var)
+                              (setf ,new-count-var ,count-var))
+                            (when (zerop ,new-count-var)
+                              (setf ,place nil)))
+                          ,@body)))))))
+
+(defun eat-connection (&key count)
+  (clear-hooks)
+  (with-count (*conn-received-hook* count)
+      (socket acceptor)
+    (close (hunchentoot::make-socket-stream socket acceptor))
+    :close))
 
 (defun eat-request (&key count)
+  (clear-hooks)
   (with-count (*request-received-hook* count)
       ()
     (hunchentoot:abort-request-handler)))
 
 (defun eat-response (&key count)
+  (clear-hooks)
   (with-count (*response-received-hook* count)
       (&rest args)
     (hunchentoot:abort-request-handler)))
+
+(defun hold-request (time &key count)
+  (clear-hooks)
+  (with-count (*request-received-hook* count)
+      ()
+    (sleep time)))
+
+(defun hold-response (time &key count)
+  (clear-hooks)
+  (with-count (*response-received-hook* count)
+      (&rest args)
+    (sleep time)))
+
 
 ;;; Logging
 
