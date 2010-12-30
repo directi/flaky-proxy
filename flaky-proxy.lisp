@@ -15,11 +15,11 @@
       hunchentoot:*log-lisp-errors-p* t
       hunchentoot:*log-lisp-backtraces-p* t)
 
-(defvar *remove-input-headers*
-  (list :connection :proxy-connection :content-length :user-agent))
+(defvar *remove-request-headers*
+  (list :connection :proxy-connection :content-length :user-agent :host :accept))
 
-(defvar *remove-output-headers*
-  (list :connection :proxy-connection :content-length))
+(defvar *remove-response-headers*
+  (list :connection :proxy-connection :content-length :transfer-encoding))
 
 (defun filter-headers (filter-list headers)
   (remove-if (lambda (header) (member header filter-list))
@@ -33,34 +33,34 @@
   (bt:with-lock-held (*id-lock*)
     (incf *id*))
   (let ((*id* *id*))
-    (log-message "CONN start")
+    (log-message "CONN start ~A" socket)
     (unless (eql :close (call-hook *conn-received-hook* socket acceptor))
       (call-next-method))
-    (log-message "CONN close")))
+    (log-message "CONN close ~A" socket)))
 
 (defun proxy-handler ()
   (let* ((request-method (hunchentoot:request-method*))
          (uri (hunchentoot:request-uri*))
-         (input-headers (hunchentoot:headers-in*))
+         (request-headers (hunchentoot:headers-in*))
          (content-length (hunchentoot:header-in* :content-length))
-         (user-agent (hunchentoot:user-agent))
          (post-data (when (and content-length (plusp (parse-integer content-length)))
                       (hunchentoot:raw-post-data :force-binary t))))
     (log-message "REQ recd: ~A ~A" request-method uri)
     (call-hook *request-received-hook*)
-    (setf input-headers (filter-headers *remove-input-headers* input-headers))
-    (multiple-value-bind (body return-code output-headers)
+    (setf request-headers (filter-headers *remove-request-headers* request-headers))
+    (multiple-value-bind (body return-code response-headers)
         (drakma:http-request uri
                              :method request-method
-                             :additional-headers input-headers
+                             :additional-headers request-headers
                              :content post-data
                              :redirect nil
                              :force-binary t
-                             :user-agent user-agent)
+                             :user-agent (hunchentoot:user-agent)
+                             :accept (hunchentoot:header-in* :accept))
       (log-message "RES recd: ~A" return-code)
-      (call-hook *response-received-hook* body return-code output-headers)
-      (setf output-headers (filter-headers *remove-output-headers* output-headers))
-      (loop for (header . value) in output-headers
+      (call-hook *response-received-hook* body return-code response-headers)
+      (setf response-headers (filter-headers *remove-response-headers* response-headers))
+      (loop for (header . value) in response-headers
          do (setf (hunchentoot:header-out header) value))
       (when body
         (setf (hunchentoot:content-length*) (length body)))
