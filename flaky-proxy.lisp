@@ -3,18 +3,6 @@
 
 (cl:in-package #:flaky-proxy)
 
-(defun proxy-dispatcher (request)
-  (when (cl-ppcre:scan "^http" (hunchentoot:request-uri request))
-    'proxy-handler))
-
-(push 'proxy-dispatcher hunchentoot:*dispatch-table*)
-
-(setf hunchentoot:*handle-http-errors-p* nil
-      hunchentoot:*access-log-pathname* #p"/tmp/hunchentoot-access.log"
-      hunchentoot:*message-log-pathname* #p"/tmp/hunchentoot-error.log"
-      hunchentoot:*log-lisp-errors-p* t
-      hunchentoot:*log-lisp-backtraces-p* t)
-
 (defvar *remove-request-headers*
   (list :connection :proxy-connection :content-length :user-agent :host :accept))
 
@@ -25,6 +13,9 @@
   (remove-if (lambda (header) (member header filter-list))
              headers
              :key #'car))
+
+(defvar *id-lock* (bt:make-lock "id"))
+(defvar *id* 0)
 
 (defclass flaky-acceptor (hunchentoot:acceptor)
   ())
@@ -135,11 +126,8 @@
 
 ;;; Logging
 
-(defvar *log-file* #p"/tmp/flaky-proxy.log")
+(defvar *log-file* nil)
 (defvar *log-file-stream* nil)
-
-(defvar *id-lock* (bt:make-lock "id"))
-(defvar *id* 0)
 
 (defun iso-time (&optional (time (get-universal-time)))
   "Returns the universal time TIME as a string in full ISO format."
@@ -155,8 +143,24 @@
           (apply #'format nil fmt args))
   (force-output *log-file-stream*))
 
+;;; Setup
+
+(defun proxy-dispatcher (request)
+  (when (cl-ppcre:scan "^http" (hunchentoot:request-uri request))
+    'proxy-handler))
+
+(defun setup-hunchentoot ()
+  (push 'proxy-dispatcher hunchentoot:*dispatch-table*)
+  (setf hunchentoot:*handle-http-errors-p* nil
+        hunchentoot:*access-log-pathname* #p"/tmp/hunchentoot-access.log"
+        hunchentoot:*message-log-pathname* #p"/tmp/hunchentoot-error.log"
+        hunchentoot:*log-lisp-errors-p* t
+        hunchentoot:*log-lisp-backtraces-p* t))
+
 (defvar *server* nil)
 
 (defun init (&key (port 3200) (log-file *log-file*))
+  (setup-hunchentoot)
+  (setf *log-file* #p"/tmp/flaky-proxy.log")
   (setf *server* (hunchentoot:start (make-instance 'flaky-acceptor :port port)))
   (setf *log-file-stream* (open log-file :direction :output :if-exists :append :if-does-not-exist :create)))
