@@ -16,7 +16,7 @@
       hunchentoot:*log-lisp-backtraces-p* t)
 
 (defvar *remove-input-headers*
-  (list :connection :proxy-connection :content-length))
+  (list :connection :proxy-connection :content-length :user-agent))
 
 (defvar *remove-output-headers*
   (list :connection :proxy-connection :content-length))
@@ -42,19 +42,21 @@
   (let* ((request-method (hunchentoot:request-method*))
          (uri (hunchentoot:request-uri*))
          (input-headers (hunchentoot:headers-in*))
-         (content-length (cdr (assoc :content-length input-headers)))
+         (content-length (hunchentoot:header-in* :content-length))
+         (user-agent (hunchentoot:user-agent))
          (post-data (when (and content-length (plusp (parse-integer content-length)))
                       (hunchentoot:raw-post-data :force-binary t))))
     (log-message "REQ recd: ~A ~A" request-method uri)
     (call-hook *request-received-hook*)
-    (setf input-headers (filter-headers *remove-output-headers* input-headers))
+    (setf input-headers (filter-headers *remove-input-headers* input-headers))
     (multiple-value-bind (body return-code output-headers)
         (drakma:http-request uri
                              :method request-method
                              :additional-headers input-headers
                              :content post-data
                              :redirect nil
-                             :force-binary t)
+                             :force-binary t
+                             :user-agent user-agent)
       (log-message "RES recd: ~A" return-code)
       (call-hook *response-received-hook* body return-code output-headers)
       (setf output-headers (filter-headers *remove-output-headers* output-headers))
