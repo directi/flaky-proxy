@@ -96,6 +96,7 @@
   (clear-hooks)
   (with-count (*conn-received-hook* count)
       (socket acceptor)
+    (log-hook-message "Eating connection")
     (close (hunchentoot::make-socket-stream socket acceptor))
     :close))
 
@@ -103,24 +104,28 @@
   (clear-hooks)
   (with-count (*request-received-hook* count)
       ()
+    (log-hook-message "Eating request")
     (hunchentoot:abort-request-handler)))
 
 (defun eat-response (&key count)
   (clear-hooks)
   (with-count (*response-received-hook* count)
       (&rest args)
+    (log-hook-message "Eating response")
     (hunchentoot:abort-request-handler)))
 
 (defun hold-request (time &key count)
   (clear-hooks)
   (with-count (*request-received-hook* count)
       ()
+    (log-hook-message "Holding request for ~A seconds" time)
     (sleep time)))
 
 (defun hold-response (time &key count)
   (clear-hooks)
   (with-count (*response-received-hook* count)
       (&rest args)
+    (log-hook-message "Holding response for ~A seconds" time)
     (sleep time)))
 
 
@@ -141,6 +146,10 @@
           (iso-time)
           *id*
           (apply #'format nil fmt args))
+  (force-output *log-file-stream*))
+
+(defun log-hook-message (fmt &rest args)
+  (format *log-file-stream* "~&[~A] [HOOK] ~A~%" (iso-time) (apply #'format nil fmt args))
   (force-output *log-file-stream*))
 
 ;;; Setup
