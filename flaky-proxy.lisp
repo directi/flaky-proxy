@@ -110,7 +110,6 @@
   (clear-hooks)
   (with-count (*request-received-hook* count)
       ()
-    (close (hunchentoot::content-stream hunchentoot:*request*))
     (hunchentoot:abort-request-handler)))
 
 (defun eat-response (&key count)
