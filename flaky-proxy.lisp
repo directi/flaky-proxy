@@ -54,8 +54,6 @@
       (unless (plusp (length body)) (setf body nil))
       (loop for (header . value) in response-headers
          do (setf (hunchentoot:header-out header) value))
-      (unless (assoc :content-type response-headers)
-        (setf (hunchentoot:content-type*) nil))
       (when body
         (setf (hunchentoot:content-length*) (length body)))
       (setf (hunchentoot:return-code*) return-code)
@@ -167,7 +165,8 @@
         hunchentoot:*access-log-pathname* #p"/tmp/hunchentoot-access.log"
         hunchentoot:*message-log-pathname* #p"/tmp/hunchentoot-error.log"
         hunchentoot:*log-lisp-errors-p* t
-        hunchentoot:*log-lisp-backtraces-p* t))
+        hunchentoot:*log-lisp-backtraces-p* t
+        hunchentoot:*default-content-type* nil))
 
 (defvar *server* nil)
 
