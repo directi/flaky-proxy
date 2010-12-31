@@ -131,7 +131,7 @@
 
 ;;; Logging
 
-(defvar *log-file* nil)
+(defvar *log-file* #p"/tmp/flaky-proxy.log")
 (defvar *log-file-stream* nil)
 
 (defun iso-time (&optional (time (get-universal-time)))
@@ -170,6 +170,5 @@
 
 (defun init (&key (port 3200) (log-file *log-file*))
   (setup-hunchentoot)
-  (setf *log-file* #p"/tmp/flaky-proxy.log")
   (setf *server* (hunchentoot:start (make-instance 'flaky-acceptor :port port)))
   (setf *log-file-stream* (open log-file :direction :output :if-exists :append :if-does-not-exist :create)))
