@@ -51,6 +51,7 @@
       (log-message "RES recd: ~A" return-code)
       (call-hook *response-received-hook* body return-code response-headers)
       (setf response-headers (filter-headers *remove-response-headers* response-headers))
+      (unless (plusp (length body)) (setf body nil))
       (loop for (header . value) in response-headers
          do (setf (hunchentoot:header-out header) value))
       (when body
