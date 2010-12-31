@@ -54,6 +54,8 @@
       (unless (plusp (length body)) (setf body nil))
       (loop for (header . value) in response-headers
          do (setf (hunchentoot:header-out header) value))
+      (unless (assoc :content-type response-headers)
+        (setf (hunchentoot:content-type*) nil))
       (when body
         (setf (hunchentoot:content-length*) (length body)))
       (setf (hunchentoot:return-code*) return-code)
