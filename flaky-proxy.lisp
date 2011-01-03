@@ -1,5 +1,12 @@
 (cl:defpackage #:flaky-proxy
-  (:use #:cl))
+  (:use #:cl)
+  (:export #:init
+           #:clear-hooks
+           #:eat-connection
+           #:eat-request
+           #:eat-response
+           #:hold-request
+           #:hold-response))
 
 (cl:in-package #:flaky-proxy)
 
