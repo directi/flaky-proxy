@@ -1,0 +1,7 @@
+flaky-proxy
+===========
+
+To launch flaky proxy quickly and get hold of the REPL, load the
+launch.lisp file. e.g. If you have SBCL,
+
+  $ sbcl --load launch.lisp
